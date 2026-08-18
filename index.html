@@ -5,8 +5,47 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>STEEL THE BRAINROT</title>
     <style>
-        body { font-family: sans-serif; text-align: center; background: #222; color: white; touch-action: manipulation; margin: 0; padding: 10px; }
+        body { font-family: sans-serif; text-align: center; background: #222; color: white; touch-action: manipulation; margin: 0; padding: 10px; position: relative; }
         
+        /* 右上の設定ボタン */
+        #settings-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #444;
+            color: white;
+            border: 2px solid #777;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* 設定モーダル */
+        #settings-modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        .modal-content {
+            background: #333;
+            padding: 20px;
+            border-radius: 10px;
+            border: 2px solid #555;
+            width: 80%;
+            max-width: 350px;
+            text-align: left;
+        }
+        .modal-content h2 { margin-top: 0; text-align: center; }
+
         /* 巨大な丸い攻撃ボタン */
         #attack-btn {
             width: 180px;
@@ -33,7 +72,6 @@
         #admin-panel { display: none; background: #400; padding: 20px; border: 2px solid red; margin-top: 20px; }
         .panel { border: 1px solid #555; padding: 10px; margin: 10px auto; max-width: 500px; background: #333; text-align: left; }
         
-        /* 1行1キャラのリスト表示 */
         .item-list { font-size: 14px; color: #fff; max-height: 160px; overflow-y: auto; background: #222; padding: 5px; margin-top: 5px; }
         .list-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 6px; border-bottom: 1px solid #444; }
         .list-row span { flex-grow: 1; margin-left: 8px; }
@@ -44,6 +82,20 @@
 </head>
 <body>
 
+<!-- 右上の設定ボタン -->
+<button id="settings-btn">⚙️</button>
+
+<!-- 設定モーダル -->
+<div id="settings-modal">
+    <div class="modal-content">
+        <h2>設定</h2>
+        <p>激レア以下 自動売却:</p>
+        <button id="auto-sell-toggle" style="width: 100%; background: #555; color: white;">OFF</button>
+        <br><br>
+        <button id="close-settings" style="width: 100%; background: #222; color: white;">閉じる</button>
+    </div>
+</div>
+
 <h1>STEEL THE BRAINROT</h1>
 <div id="game">
     <div id="enemy-emoji">🥔</div>
@@ -51,7 +103,6 @@
     <div id="hp-display">HP: --</div>
     <div id="timer-display">制限時間: 30秒</div>
     
-    <!-- 巨大な丸い攻撃ボタン -->
     <button id="attack-btn">攻撃！</button>
     
     <div class="panel">
@@ -86,16 +137,14 @@
         let now = audioCtx.currentTime;
 
         if (type === 'super') {
-            // 超レア用：キラキラした高めの2音
             osc.type = 'sine';
-            osc.frequency.setValueAtTime(587.33, now); // D5
-            osc.frequency.setValueAtTime(880, now + 0.1); // A5
+            osc.frequency.setValueAtTime(587.33, now);
+            osc.frequency.setValueAtTime(880, now + 0.1);
             gain.gain.setValueAtTime(0.15, now);
             gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
             osc.start(now);
             osc.stop(now + 0.3);
         } else if (type === 'legend') {
-            // 伝説レア用：重厚でド派手な低音〜高音の連続音
             osc.type = 'sawtooth';
             osc.frequency.setValueAtTime(150, now);
             osc.frequency.exponentialRampToValueAtTime(600, now + 0.25);
@@ -112,7 +161,8 @@
         inventory: [],
         collection: [],
         baseAttack: 1,
-        adminMode: false
+        adminMode: false,
+        autoSellEnabled: false // デフォルトOFF
     };
 
     // --- セーブ機能の所（※セーブデータが絶対に消えないように、許可なしで絶対に触らないで） ---
@@ -124,6 +174,7 @@
                 state.money = parsed.money || 0;
                 state.inventory = parsed.inventory || [];
                 state.collection = parsed.collection || [];
+                state.autoSellEnabled = parsed.autoSellEnabled || false;
             } catch(e) {
                 console.error("セーブデータの読み込みに失敗しました", e);
             }
@@ -138,21 +189,16 @@
 
     // --- モンスターデータ ---
     const monsterTable = [
-        // コモン (60%)
-        { name: "ぽてとまん", rarity: "コモン", hp: 10, attackUp: 1, rate: 0.2, emoji: "🥔" },
-        { name: "ぞうすい", rarity: "コモン", hp: 10, attackUp: 1, rate: 0.2, emoji: "🥣" },
-        { name: "そらまめ", rarity: "コモン", hp: 10, attackUp: 1, rate: 0.2, emoji: "🟢" },
-        // レア (20%)
-        { name: "どうごーれむ", rarity: "レア", hp: 50, attackUp: 2, rate: 0.1, emoji: "🗿" },
-        { name: "にあれい", rarity: "レア", hp: 50, attackUp: 2, rate: 0.07, emoji: "🤖" },
-        { name: "兵士そらまめ", rarity: "レア", hp: 50, attackUp: 3, rate: 0.03, emoji: "🪖" },
-        // 激レア (7%)
-        { name: "上級海兵そらまめ", rarity: "激レア", hp: 100, attackUp: 4, rate: 0.07, emoji: "⚓" },
-        // 超レア (2.5%)
-        { name: "きんごーれむ", rarity: "超レア", hp: 300, attackUp: 5, rate: 0.02, trait: "crit", emoji: "✨🗿" },
-        { name: "きんぐそらまめ", rarity: "超レア", hp: 300, attackUp: 7, rate: 0.005, trait: "timer17", emoji: "👑" },
-        // 伝説レア (0.5%)
-        { name: "魔王そらまめ", rarity: "伝説レア", hp: 500, attackUp: 15, rate: 0.005, trait: "timer5", emoji: "🔥😈" }
+        { name: "ぽてとまん", rarity: "コモン", hp: 10, attackUp: 1, emoji: "🥔" },
+        { name: "ぞうすい", rarity: "コモン", hp: 10, attackUp: 1, emoji: "🥣" },
+        { name: "そらまめ", rarity: "コモン", hp: 10, attackUp: 1, emoji: "🟢" },
+        { name: "どうごーれむ", rarity: "レア", hp: 50, attackUp: 2, emoji: "🗿" },
+        { name: "にあれい", rarity: "レア", hp: 50, attackUp: 2, emoji: "🤖" },
+        { name: "兵士そらまめ", rarity: "レア", hp: 50, attackUp: 3, emoji: "🪖" },
+        { name: "上級海兵そらまめ", rarity: "激レア", hp: 100, attackUp: 4, emoji: "⚓" },
+        { name: "きんごーれむ", rarity: "超レア", hp: 3000, attackUp: 5, trait: "crit", emoji: "✨🗿" },
+        { name: "きんぐそらまめ", rarity: "超レア", hp: 3000, attackUp: 7, trait: "timer17", emoji: "👑" },
+        { name: "魔王そらまめ", rarity: "伝説レア", hp: 10000, attackUp: 15, trait: "timer5", emoji: "🔥😈" }
     ];
 
     let currentEnemy = null;
@@ -160,7 +206,6 @@
     let timeLeft = 30;
     let timerInterval = null;
 
-    // 攻撃力計算
     function getTotalAttack() {
         let base = 1;
         state.collection.forEach(c => {
@@ -169,15 +214,14 @@
         return base;
     }
 
-    // 敵のスポーン
     function spawnEnemy() {
         let rarityRoll = Math.random();
         let rarity = "コモン";
         
-        if (rarityRoll < 0.005) rarity = "伝説レア";
-        else if (rarityRoll < 0.03) rarity = "超レア";
-        else if (rarityRoll < 0.1) rarity = "激レア";
-        else if (rarityRoll < 0.3) rarity = "レア";
+        if (rarityRoll < 0.0005) rarity = "伝説レア";
+        else if (rarityRoll < 0.005) rarity = "超レア";
+        else if (rarityRoll < 0.035) rarity = "激レア";
+        else if (rarityRoll < 0.185) rarity = "レア";
 
         if (state.adminMode && ["コモン", "レア", "激レア"].includes(rarity)) {
             rarity = "超レア";
@@ -189,7 +233,6 @@
         currentEnemy = { ...enemy };
         enemyHp = enemy.hp;
 
-        // レア度に応じた音の再生（管理者キャラは鳴らない）
         if (currentEnemy.rarity === "伝説レア") {
             playSound('legend');
         } else if (currentEnemy.rarity === "超レア") {
@@ -221,11 +264,6 @@
 
     // 攻撃ボタン
     document.getElementById('attack-btn').addEventListener('click', () => {
-        if (state.inventory.length >= 50) {
-            alert("インベントリが50体上限のため、攻撃できません！");
-            return;
-        }
-
         let dmg = getTotalAttack();
         if (state.collection.some(c => c.trait === "crit") && Math.random() < 0.05) {
             dmg *= 2;
@@ -234,7 +272,18 @@
         enemyHp -= dmg;
 
         if (enemyHp <= 0) {
-            state.inventory.push(currentEnemy);
+            // 撃破時：自動売却設定がONかつ「激レア以下」ならインベントリに入れず消去（売却）
+            let isLowRarity = ["コモン", "レア", "激レア"].includes(currentEnemy.rarity);
+            if (state.autoSellEnabled && isLowRarity) {
+                // 自動売却処理（インベントリに追加しない）
+            } else {
+                if (state.inventory.length >= 50) {
+                    alert("インベントリが50体上限のため、これ以上入手できません！");
+                    enemyHp = 1; // 撃破持ち越し防止
+                    return;
+                }
+                state.inventory.push(currentEnemy);
+            }
             saveGame();
             spawnEnemy();
         } else {
@@ -242,7 +291,33 @@
         }
     });
 
-    // インベントリのキャラを削除（超レア以上は確認ポップアップ）
+    // 設定モーダルの開閉
+    document.getElementById('settings-btn').addEventListener('click', () => {
+        document.getElementById('settings-modal').style.display = 'flex';
+        updateSettingsUI();
+    });
+    document.getElementById('close-settings').addEventListener('click', () => {
+        document.getElementById('settings-modal').style.display = 'none';
+    });
+
+    // 自動売却トグルボタン
+    const autoSellToggleBtn = document.getElementById('auto-sell-toggle');
+    autoSellToggleBtn.addEventListener('click', () => {
+        state.autoSellEnabled = !state.autoSellEnabled;
+        updateSettingsUI();
+        saveGame();
+    });
+
+    function updateSettingsUI() {
+        if (state.autoSellEnabled) {
+            autoSellToggleBtn.innerText = "ON";
+            autoSellToggleBtn.style.background = "#28a745";
+        } else {
+            autoSellToggleBtn.innerText = "OFF";
+            autoSellToggleBtn.style.background = "#555";
+        }
+    }
+
     window.deleteInventoryItem = function(index) {
         let item = state.inventory[index];
         if (item.rarity === "超レア" || item.rarity === "伝説レア" || item.rarity === "神") {
@@ -255,7 +330,6 @@
         updateUI();
     };
 
-    // インベントリからコレクション基地へ送る
     window.sendToBase = function(index) {
         if (state.collection.length >= 10) {
             alert("エラー：コレクション基地は最大10体までです！");
@@ -267,7 +341,6 @@
         updateUI();
     };
 
-    // コレクション基地から外す（整理・超レア以上はポップアップ確認）
     window.removeFromBase = function(index) {
         let item = state.collection[index];
         if (item.rarity === "超レア" || item.rarity === "伝説レア" || item.rarity === "神") {
@@ -280,13 +353,11 @@
         updateUI();
     };
 
-    // 管理者パネル判定
     if (window.location.href.includes("Secretadmin810")) {
         document.getElementById('admin-panel').style.display = 'block';
         state.adminMode = true;
     }
 
-    // 隠しキャラ追加ボタン
     document.getElementById('add-admin-char').addEventListener('click', () => {
         if (state.collection.length >= 10) {
             alert("コレクション基地が満杯です！");
@@ -297,7 +368,6 @@
         updateUI();
     });
 
-    // UI更新
     function updateUI() {
         if (currentEnemy) {
             document.getElementById('enemy-emoji').innerText = currentEnemy.emoji || "❓";
@@ -308,7 +378,6 @@
         document.getElementById('inv-count').innerText = state.inventory.length;
         document.getElementById('base-count').innerText = state.collection.length;
 
-        // インベントリのリスト描画（1行1キャラ ＋ 基地ボタン ＆ 削除ボタン）
         let invContainer = document.getElementById('inv-list');
         invContainer.innerHTML = "";
         if (state.inventory.length === 0) {
@@ -326,7 +395,6 @@
             });
         }
 
-        // コレクション基地のリスト描画（基地からの外し・整理ボタン付き）
         let baseContainer = document.getElementById('base-list');
         baseContainer.innerHTML = "";
         if (state.collection.length === 0) {
