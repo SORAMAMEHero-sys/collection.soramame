@@ -6,11 +6,40 @@
     <title>STEEL THE BRAINROT</title>
     <style>
         body { font-family: sans-serif; text-align: center; background: #222; color: white; touch-action: manipulation; margin: 0; padding: 10px; }
-        button { padding: 12px 24px; font-size: 16px; margin: 5px; cursor: pointer; }
+        
+        /* 巨大な丸い攻撃ボタン */
+        #attack-btn {
+            width: 180px;
+            height: 180px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #ff416c, #ff4b2b);
+            color: white;
+            font-size: 28px;
+            font-weight: bold;
+            border: 5px solid #fff;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.5);
+            cursor: pointer;
+            margin: 20px auto;
+            display: block;
+            outline: none;
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+        #attack-btn:active {
+            transform: scale(0.95);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+        }
+
+        button { padding: 8px 14px; font-size: 14px; margin: 3px; cursor: pointer; }
         #admin-panel { display: none; background: #400; padding: 20px; border: 2px solid red; margin-top: 20px; }
-        .panel { border: 1px solid #555; padding: 10px; margin: 10px auto; max-width: 500px; background: #333; }
-        .item-list { font-size: 13px; color: #aaa; max-height: 80px; overflow-y: auto; background: #222; padding: 5px; margin-top: 5px; text-align: left; }
-        #enemy-emoji { font-size: 48px; margin: 10px 0; }
+        .panel { border: 1px solid #555; padding: 10px; margin: 10px auto; max-width: 500px; background: #333; text-align: left; }
+        
+        /* 1行1キャラのリスト表示 */
+        .item-list { font-size: 14px; color: #fff; max-height: 160px; overflow-y: auto; background: #222; padding: 5px; margin-top: 5px; }
+        .list-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 6px; border-bottom: 1px solid #444; }
+        .list-row span { flex-grow: 1; margin-left: 8px; }
+
+        #enemy-emoji { font-size: 56px; margin: 10px 0; }
+        .status-container { font-size: 16px; font-weight: bold; margin: 10px 0; }
     </style>
 </head>
 <body>
@@ -18,20 +47,20 @@
 <h1>STEEL THE BRAINROT</h1>
 <div id="game">
     <div id="enemy-emoji">🥔</div>
-    <div id="enemy-display">敵出現中！</div>
+    <div id="enemy-display" class="status-container">敵出現中！</div>
     <div id="hp-display">HP: --</div>
     <div id="timer-display">制限時間: 30秒</div>
+    
+    <!-- 巨大な丸い攻撃ボタン -->
     <button id="attack-btn">攻撃！</button>
     
     <div class="panel">
         <div class="inventory">インベントリ (<span id="inv-count">0</span>/50)</div>
         <div id="inv-list" class="item-list">（インベントリは空です）</div>
-        <button id="sell-btn">インベントリの先頭を売却</button>
-        <button id="to-base-btn">先頭をコレクション基地へ送る</button>
     </div>
 
     <div class="panel">
-        <div class="base">コレクション基地 (<span id="base-count">0</span>/10)</div>
+        <div class="base">コレクション基地 (<span id="base-count">0</span>/10) - 整理・強化発動中</div>
         <div id="base-list" class="item-list">（基地にキャラはいません）</div>
     </div>
 </div>
@@ -213,32 +242,43 @@
         }
     });
 
-    // 売却ボタン
-    document.getElementById('sell-btn').addEventListener('click', () => {
-        if (state.inventory.length === 0) {
-            alert("インベントリが空です！");
-            return;
+    // インベントリのキャラを削除（超レア以上は確認ポップアップ）
+    window.deleteInventoryItem = function(index) {
+        let item = state.inventory[index];
+        if (item.rarity === "超レア" || item.rarity === "伝説レア" || item.rarity === "神") {
+            if (!confirm(`⚠️【警告】「${item.name}（${item.rarity}）」を本当に削除しますか？`)) {
+                return;
+            }
         }
-        state.inventory.shift();
+        state.inventory.splice(index, 1);
         saveGame();
         updateUI();
-    });
+    };
 
-    // 基地へ送るボタン
-    document.getElementById('to-base-btn').addEventListener('click', () => {
-        if (state.inventory.length === 0) {
-            alert("インベントリが空です！");
-            return;
-        }
+    // インベントリからコレクション基地へ送る
+    window.sendToBase = function(index) {
         if (state.collection.length >= 10) {
             alert("エラー：コレクション基地は最大10体までです！");
             return;
         }
-        let char = state.inventory.shift();
-        state.collection.push(char);
+        let item = state.inventory.splice(index, 1)[0];
+        state.collection.push(item);
         saveGame();
         updateUI();
-    });
+    };
+
+    // コレクション基地から外す（整理・超レア以上はポップアップ確認）
+    window.removeFromBase = function(index) {
+        let item = state.collection[index];
+        if (item.rarity === "超レア" || item.rarity === "伝説レア" || item.rarity === "神") {
+            if (!confirm(`⚠️【警告】基地の「${item.name}（${item.rarity}）」を外しますか？`)) {
+                return;
+            }
+        }
+        state.collection.splice(index, 1);
+        saveGame();
+        updateUI();
+    };
 
     // 管理者パネル判定
     if (window.location.href.includes("Secretadmin810")) {
@@ -268,11 +308,40 @@
         document.getElementById('inv-count').innerText = state.inventory.length;
         document.getElementById('base-count').innerText = state.collection.length;
 
-        let invListText = state.inventory.map((c, i) => `${i+1}: ${c.emoji}${c.name}(+${c.attackUp})`).join(', ');
-        document.getElementById('inv-list').innerText = invListText || "（インベントリは空です）";
+        // インベントリのリスト描画（1行1キャラ ＋ 基地ボタン ＆ 削除ボタン）
+        let invContainer = document.getElementById('inv-list');
+        invContainer.innerHTML = "";
+        if (state.inventory.length === 0) {
+            invContainer.innerHTML = "（インベントリは空です）";
+        } else {
+            state.inventory.forEach((c, i) => {
+                let row = document.createElement('div');
+                row.className = 'list-row';
+                row.innerHTML = `
+                    <span>${i+1}. ${c.emoji}${c.name}(+${c.attackUp})</span>
+                    <button onclick="sendToBase(${i})">基地へ</button>
+                    <button onclick="deleteInventoryItem(${i})" style="background:#500; color:white;">削除</button>
+                `;
+                invContainer.appendChild(row);
+            });
+        }
 
-        let baseListText = state.collection.map(c => `${c.emoji}${c.name}(+${c.attackUp})`).join(', ');
-        document.getElementById('base-list').innerText = baseListText || "（基地にキャラはいません）";
+        // コレクション基地のリスト描画（基地からの外し・整理ボタン付き）
+        let baseContainer = document.getElementById('base-list');
+        baseContainer.innerHTML = "";
+        if (state.collection.length === 0) {
+            baseContainer.innerHTML = "（基地にキャラはいません）";
+        } else {
+            state.collection.forEach((c, i) => {
+                let row = document.createElement('div');
+                row.className = 'list-row';
+                row.innerHTML = `
+                    <span>${i+1}. ${c.emoji}${c.name}(+${c.attackUp})</span>
+                    <button onclick="removeFromBase(${i})" style="background:#500; color:white;">外す</button>
+                `;
+                baseContainer.appendChild(row);
+            });
+        }
     }
 
     loadGame();
