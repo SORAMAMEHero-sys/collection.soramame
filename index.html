@@ -25,7 +25,7 @@
             background: #111; z-index: 1000; display: flex; flex-direction: column;
             justify-content: center; align-items: center;
         }
-        #intro-title { font-size: 32px; font-weight: bold; margin-bottom: 20px; color: #ff416c; text-shadow: 0 0 10px rgba(255,65,108,0.5); }
+        #intro-title { font-size: 32px; font-weight: bold; margin-bottom: 20px; color: #ff416c; text-shadow: 0 0 10px rgba(255,65,108,0.5); cursor: pointer; user-select: none; }
         #start-game-btn {
             padding: 15px 40px; font-size: 24px; font-weight: bold;
             background: linear-gradient(135deg, #ff416c, #ff4b2b); color: white;
@@ -79,7 +79,10 @@
         #attack-btn:active { transform: scale(0.95); box-shadow: 0 4px 8px rgba(0,0,0,0.5); }
 
         button { padding: 8px 14px; font-size: 14px; margin: 3px; cursor: pointer; }
+        
+        /* 管理者パネル（初期は非表示） */
         #admin-panel { display: none; background: #400; padding: 20px; border: 2px solid red; margin-top: 20px; text-align: left; }
+        
         .panel { border: 1px solid #555; padding: 10px; margin: 10px auto; max-width: 500px; background: rgba(51,51,51,0.9); text-align: left; }
         
         .item-list { font-size: 14px; color: #fff; max-height: 160px; overflow-y: auto; background: #222; padding: 5px; margin-top: 5px; }
@@ -89,6 +92,9 @@
         #enemy-emoji { font-size: 56px; margin: 10px 0; }
         .status-container { font-size: 16px; font-weight: bold; margin: 10px 0; }
         .currency-box { font-size: 15px; font-weight: bold; background: rgba(17,17,17,0.9); padding: 8px; border-radius: 6px; margin-bottom: 10px; display: flex; justify-content: space-around; }
+        
+        /* タイトルにクリック可能感を出す演出 */
+        h1 { cursor: pointer; user-select: none; display: inline-block; }
     </style>
 </head>
 <body>
@@ -162,7 +168,9 @@
     </div>
 </div>
 
-<h1>そらまめザコレクション</h1>
+<!-- メインタイトル（ここを5回連続タップすると管理者パネルが出現！） -->
+<h1 id="main-title">そらまめザコレクション</h1>
+
 <div id="game">
     <!-- 通貨表示 -->
     <div class="currency-box">
@@ -193,6 +201,7 @@
     </div>
 </div>
 
+<!-- 管理者パネル（タイトル5回タップで出現） -->
 <div id="admin-panel">
     <h2>管理者パネル</h2>
     <div style="margin-bottom: 10px;">
@@ -459,6 +468,31 @@
         spawnEnemy();
     });
 
+    // タイトル5回連続タップで管理者パネルを表示する仕掛け
+    let titleClickCount = 0;
+    let titleClickTimer = null;
+    document.getElementById('main-title').addEventListener('click', () => {
+        titleClickCount++;
+        if (titleClickTimer) clearTimeout(titleClickTimer);
+        
+        if (titleClickCount >= 5) {
+            let adminPanel = document.getElementById('admin-panel');
+            if (adminPanel.style.display === 'block') {
+                adminPanel.style.display = 'none';
+                alert("管理者パネルを閉じました。");
+            } else {
+                adminPanel.style.display = 'block';
+                state.adminMode = true;
+                alert("🔧 管理者パネルが解放されました！");
+            }
+            titleClickCount = 0;
+        } else {
+            titleClickTimer = setTimeout(() => {
+                titleClickCount = 0;
+            }, 1000); // 1秒以内に5回押す
+        }
+    });
+
     document.getElementById('upgrade-btn').addEventListener('click', () => {
         document.getElementById('upgrade-modal').style.display = 'flex';
         updateUpgradeUI();
@@ -617,17 +651,14 @@
         saveGame(); updateUI();
     };
 
-    if (window.location.href.includes("soramameadmin810")) {
-        document.getElementById('admin-panel').style.display = 'block';
-        state.adminMode = true;
-        let select = document.getElementById('force-spawn-select');
-        monsterTable.forEach(m => {
-            let opt = document.createElement('option');
-            opt.value = m.name;
-            opt.innerText = `[${m.rarity}] ${m.emoji}${m.name}`;
-            select.appendChild(opt);
-        });
-    }
+    // 管理者パネル用のセレクトボックス初期化
+    let select = document.getElementById('force-spawn-select');
+    monsterTable.forEach(m => {
+        let opt = document.createElement('option');
+        opt.value = m.name;
+        opt.innerText = `[${m.rarity}] ${m.emoji}${m.name}`;
+        select.appendChild(opt);
+    });
 
     document.getElementById('apply-spawn-btn').addEventListener('click', () => {
         let selectedName = document.getElementById('force-spawn-select').value;
