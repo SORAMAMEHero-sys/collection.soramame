@@ -5,8 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>そらまめザコレクション</title>
     <style>
-        body { font-family: sans-serif; text-align: center; background: #222; color: white; touch-action: manipulation; margin: 0; padding: 10px; position: relative; }
+        body { font-family: sans-serif; text-align: center; background: #222; color: white; touch-action: manipulation; margin: 0; padding: 10px; position: relative; transition: background 0.5s; }
         
+        /* 動く虹グラデーション背景（幻の破壊神戦用） */
+        body.phantom-bg {
+            background: linear-gradient(135deg, #ff416c, #ff4b2b, #f7ff00, #00dbde, #fc00ff);
+            background-size: 400% 400%;
+            animation: rainbowBG 5s ease infinite;
+        }
+        @keyframes rainbowBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
         /* イントロ画面 */
         #intro-screen {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -68,7 +80,7 @@
 
         button { padding: 8px 14px; font-size: 14px; margin: 3px; cursor: pointer; }
         #admin-panel { display: none; background: #400; padding: 20px; border: 2px solid red; margin-top: 20px; text-align: left; }
-        .panel { border: 1px solid #555; padding: 10px; margin: 10px auto; max-width: 500px; background: #333; text-align: left; }
+        .panel { border: 1px solid #555; padding: 10px; margin: 10px auto; max-width: 500px; background: rgba(51,51,51,0.9); text-align: left; }
         
         .item-list { font-size: 14px; color: #fff; max-height: 160px; overflow-y: auto; background: #222; padding: 5px; margin-top: 5px; }
         .list-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 6px; border-bottom: 1px solid #444; }
@@ -76,7 +88,7 @@
 
         #enemy-emoji { font-size: 56px; margin: 10px 0; }
         .status-container { font-size: 16px; font-weight: bold; margin: 10px 0; }
-        .currency-box { font-size: 15px; font-weight: bold; background: #111; padding: 8px; border-radius: 6px; margin-bottom: 10px; display: flex; justify-content: space-around; }
+        .currency-box { font-size: 15px; font-weight: bold; background: rgba(17,17,17,0.9); padding: 8px; border-radius: 6px; margin-bottom: 10px; display: flex; justify-content: space-around; }
     </style>
 </head>
 <body>
@@ -222,7 +234,6 @@
             gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
             osc.start(now); osc.stop(now + 0.5);
         } else if (type === 'phantom') {
-            // 超ヤバい幻の登場音（重低音＆異次元サウンド）
             osc.type = 'square';
             osc.frequency.setValueAtTime(80, now);
             osc.frequency.setValueAtTime(220, now + 0.1);
@@ -286,9 +297,9 @@
         { name: "兵士そらまめ", rarity: "レア", hp: 50, attackUp: 3, emoji: "🪖" },
         { name: "上級海兵そらまめ", rarity: "激レア", hp: 100, attackUp: 4, emoji: "⚓" },
         { name: "きんごーれむ", rarity: "超レア", hp: 3000, attackUp: 5, trait: "crit", emoji: "✨🗿" },
-        { name: "きんぐそらまめ", rarity: "超レア", hp: 3000, attackUp: 7, trait: "timerPlus17", emoji: "👑" },
-        { name: "魔王そらまめ", rarity: "伝説レア", hp: 10000, attackUp: 15, trait: "timer5", emoji: "🔥😈" },
-        { name: "破壊神", rarity: "幻", hp: 50000, attackUp: 50, emoji: "🔥🤏😈🫳🧊" }
+        { name: "きんぐそらまめ", rarity: "超レア", hp: 3000, attackUp: 7, emoji: "👑" },
+        { name: "魔王そらまめ", rarity: "伝説レア", hp: 10000, attackUp: 15, trait: "timer12", emoji: "🔥😈" },
+        { name: "破壊神", rarity: "幻", hp: 3000000, attackUp: 50, trait: "phantomTimer60", emoji: "🔥🤏😈🫳🧊" }
     ];
 
     let currentEnemy = null;
@@ -320,7 +331,6 @@
             let rarityRoll = Math.random();
             let rarity = "コモン";
             
-            // 幻の確率: ラックティアLv.3かつ0.0005%
             let phantomChance = (state.luckLv >= 3) ? 0.000005 : 0;
             let legendChance = 0.0005 + (state.luckLv * 0.001);
             let superChance = 0.005 + (state.luckLv * 0.003);
@@ -332,7 +342,6 @@
             else if (rarityRoll < 0.185) rarity = "レア";
 
             if (!state.commonEnabled && rarity === "コモン") rarity = "レア";
-            // 破壊神の効果: レアが出なくなる
             if (state.collection.some(c => c.name === "破壊神") && rarity === "レア") {
                 rarity = "激レア";
             }
@@ -344,17 +353,33 @@
         currentEnemy = enemy;
         enemyHp = enemy.hp;
 
-        if (currentEnemy.rarity === "幻") playSound('phantom');
-        else if (currentEnemy.rarity === "伝説レア") playSound('legend');
-        else if (currentEnemy.rarity === "超レア") playSound('super');
+        // 背景の虹グラデーション切り替え（破壊神戦のみ動く背景）
+        if (currentEnemy.rarity === "幻") {
+            document.body.classList.add('phantom-bg');
+            playSound('phantom');
+        } else {
+            document.body.classList.remove('phantom-bg');
+            if (currentEnemy.rarity === "伝説レア") playSound('legend');
+            else if (currentEnemy.rarity === "超レア") playSound('super');
+        }
 
-        // 制限時間を伸ばす系仕様
+        // 制限時間計算（基本30秒 ＋ 強化延長 ＋ 基地のきんぐそらまめ効果 +17秒）
         let limit = 30 + (state.efficiencyLv * 0.1);
-        if (currentEnemy.trait === "timer5") limit = 5;
-        if (state.collection.some(c => c.trait === "timerPlus17")) limit += 17;
-        if (state.collection.some(c => c.name === "魔王そらまめ")) limit = Math.max(limit, 5);
+        if (state.collection.some(c => c.name === "きんぐそらまめ")) {
+            limit += 17;
+        }
 
-        timeLeft = limit;
+        // 魔王そらまめ（12秒固定）
+        if (currentEnemy.trait === "timer12") {
+            limit = 12;
+        }
+
+        // 幻の破壊神（60秒固定）
+        if (currentEnemy.trait === "phantomTimer60") {
+            limit = 60;
+        }
+
+        timeLeft = Math.floor(limit);
 
         startTimer();
         updateUI();
@@ -365,7 +390,6 @@
         timerInterval = setInterval(() => {
             timeLeft--;
             if (timeLeft <= 0) {
-                // 時間切れ: 負けてもコインは貰える！ルビーは無し
                 if (currentEnemy) {
                     if (currentEnemy.rarity === "レア") state.coins += 1;
                     else if (currentEnemy.rarity === "激レア") state.coins += 10;
@@ -384,7 +408,6 @@
         if (!currentEnemy) return;
         enemyHp -= dmg;
         if (enemyHp <= 0) {
-            // コイン＆ルビー報酬
             if (currentEnemy.rarity === "レア") state.coins += 1;
             else if (currentEnemy.rarity === "激レア") state.coins += 10;
             else if (currentEnemy.rarity === "超レア") { state.coins += 30; state.rubies += 1; }
@@ -409,7 +432,6 @@
         }
     }
 
-    // 攻撃ボタン
     document.getElementById('attack-btn').addEventListener('click', () => {
         let dmg = getTotalAttack();
         if (state.collection.some(c => c.trait === "crit") && Math.random() < 0.05) {
@@ -418,7 +440,6 @@
         damageEnemy(dmg);
     });
 
-    // --- 仲間の自動攻撃ループ設定 ---
     setInterval(() => {
         if (!gameStarted || !currentEnemy) return;
         let baseDmg = getTotalAttack();
@@ -431,7 +452,6 @@
         });
     }, 100);
 
-    // --- タイトル画面開始ボタン ---
     document.getElementById('start-game-btn').addEventListener('click', () => {
         document.getElementById('intro-screen').style.display = 'none';
         gameStarted = true;
@@ -439,7 +459,6 @@
         spawnEnemy();
     });
 
-    // --- 強化モーダル ---
     document.getElementById('upgrade-btn').addEventListener('click', () => {
         document.getElementById('upgrade-modal').style.display = 'flex';
         updateUpgradeUI();
@@ -468,7 +487,6 @@
         document.getElementById('luck-lv').innerText = state.luckLv;
     }
 
-    // --- 仲間雇用モーダル ---
     document.getElementById('partner-btn').addEventListener('click', () => {
         document.getElementById('partner-modal').style.display = 'flex';
     });
@@ -497,7 +515,6 @@
     document.getElementById('hire-part-2').addEventListener('click', () => hirePartner("正社員", 3, 5));
     document.getElementById('hire-part-3').addEventListener('click', () => hirePartner("上級海兵", 1, 15));
 
-    // --- 設定モーダル ---
     document.getElementById('settings-btn').addEventListener('click', () => {
         document.getElementById('settings-modal').style.display = 'flex';
         updateSettingsUI();
@@ -557,7 +574,6 @@
         }
     }
 
-    // --- インベントリ・基地・仲間基地の管理 ---
     window.deleteInventoryItem = function(index) {
         let item = state.inventory[index];
         if (state.warningEnabled && (item.rarity === "超レア" || item.rarity === "伝説レア" || item.rarity === "幻" || item.rarity === "神")) {
@@ -601,7 +617,6 @@
         saveGame(); updateUI();
     };
 
-    // 管理者パネル
     if (window.location.href.includes("soramameadmin810")) {
         document.getElementById('admin-panel').style.display = 'block';
         state.adminMode = true;
