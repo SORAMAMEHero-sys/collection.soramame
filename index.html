@@ -6,17 +6,19 @@
     <title>STEEL THE BRAINROT</title>
     <style>
         body { font-family: sans-serif; text-align: center; background: #222; color: white; touch-action: manipulation; margin: 0; padding: 10px; }
-        button { padding: 15px 30px; font-size: 18px; margin: 5px; cursor: pointer; }
+        button { padding: 12px 24px; font-size: 16px; margin: 5px; cursor: pointer; }
         #admin-panel { display: none; background: #400; padding: 20px; border: 2px solid red; margin-top: 20px; }
         .panel { border: 1px solid #555; padding: 10px; margin: 10px auto; max-width: 500px; background: #333; }
-        .warning { color: #ff6b6b; font-size: 12px; margin-top: 5px; font-weight: bold; }
-        .item-list { font-size: 14px; color: #aaa; }
+        .warning { color: #ff6b6b; font-size: 11px; margin-top: 5px; font-weight: bold; }
+        .item-list { font-size: 13px; color: #aaa; max-height: 80px; overflow-y: auto; background: #222; padding: 5px; margin-top: 5px; text-align: left; }
+        #enemy-emoji { font-size: 48px; margin: 10px 0; }
     </style>
 </head>
 <body>
 
 <h1>STEEL THE BRAINROT</h1>
 <div id="game">
+    <div id="enemy-emoji">🥔</div>
     <div id="enemy-display">敵出現中！</div>
     <div id="hp-display">HP: --</div>
     <div id="timer-display">制限時間: 30秒</div>
@@ -24,16 +26,15 @@
     
     <div class="panel">
         <div class="inventory">インベントリ (<span id="inv-count">0</span>/50)</div>
+        <div id="inv-list" class="item-list">（インベントリは空です）</div>
         <button id="sell-btn">インベントリの先頭を売却</button>
         <button id="to-base-btn">先頭をコレクション基地へ送る</button>
     </div>
 
     <div class="panel">
         <div class="base">コレクション基地 (<span id="base-count">0</span>/10)</div>
-        <div id="base-list" class="item-list"></div>
+        <div id="base-list" class="item-list">（基地にキャラはいません）</div>
     </div>
-
-    <div class="warning">⚠️ セーブデータが絶対に消えないように、許可なしで絶対に触らないで</div>
 </div>
 
 <div id="admin-panel">
@@ -42,7 +43,7 @@
 </div>
 
 <script>
-    // --- ゲームデータとオートセーブ ---
+    // --- ゲームデータ ---
     let state = {
         money: 0,
         inventory: [],
@@ -51,7 +52,7 @@
         adminMode: false
     };
 
-    // セーブデータのロード
+    // --- セーブ機能の所（※セーブデータが絶対に消えないように、許可なしで絶対に触らないで） ---
     function loadGame() {
         const saved = localStorage.getItem('brainrot_save');
         if (saved) {
@@ -66,29 +67,29 @@
         }
     }
 
-    // オートセーブ（状態が変わるごと ＋ 3秒おき）
     function saveGame() {
+        // セーブデータが絶対に消えないように、許可なしで絶対に触らないで
         localStorage.setItem('brainrot_save', JSON.stringify(state));
     }
     setInterval(saveGame, 3000);
 
-    // --- モンスターデータ ---
+    // --- モンスターデータ（絵文字付き） ---
     const monsterTable = [
         // コモン (60%)
-        { name: "ぽてとまん", rarity: "コモン", hp: 10, attackUp: 1, rate: 0.2 },
-        { name: "ぞうすい", rarity: "コモン", hp: 10, attackUp: 1, rate: 0.2 },
-        { name: "そらまめ", rarity: "コモン", hp: 10, attackUp: 1, rate: 0.2 },
+        { name: "ぽてとまん", rarity: "コモン", hp: 10, attackUp: 1, rate: 0.2, emoji: "🥔" },
+        { name: "ぞうすい", rarity: "コモン", hp: 10, attackUp: 1, rate: 0.2, emoji: "🥣" },
+        { name: "そらまめ", rarity: "コモン", hp: 10, attackUp: 1, rate: 0.2, emoji: "🟢" },
         // レア (20%)
-        { name: "どうごーれむ", rarity: "レア", hp: 50, attackUp: 2, rate: 0.1 },
-        { name: "にあれい", rarity: "レア", hp: 50, attackUp: 2, rate: 0.07 },
-        { name: "兵士そらまめ", rarity: "レア", hp: 50, attackUp: 3, rate: 0.03 },
+        { name: "どうごーれむ", rarity: "レア", hp: 50, attackUp: 2, rate: 0.1, emoji: "🗿" },
+        { name: "にあれい", rarity: "レア", hp: 50, attackUp: 2, rate: 0.07, emoji: "🤖" },
+        { name: "兵士そらまめ", rarity: "レア", hp: 50, attackUp: 3, rate: 0.03, emoji: "🪖" },
         // 激レア (7%)
-        { name: "上級海兵そらまめ", rarity: "激レア", hp: 100, attackUp: 4, rate: 0.07 },
+        { name: "上級海兵そらまめ", rarity: "激レア", hp: 100, attackUp: 4, rate: 0.07, emoji: "⚓" },
         // 超レア (2.5%)
-        { name: "きんごーれむ", rarity: "超レア", hp: 300, attackUp: 5, rate: 0.02, trait: "crit" },
-        { name: "きんぐそらまめ", rarity: "超レア", hp: 300, attackUp: 7, rate: 0.005, trait: "timer17" },
+        { name: "きんごーれむ", rarity: "超レア", hp: 300, attackUp: 5, rate: 0.02, trait: "crit", emoji: "✨🗿" },
+        { name: "きんぐそらまめ", rarity: "超レア", hp: 300, attackUp: 7, rate: 0.005, trait: "timer17", emoji: "👑" },
         // 伝説レア (0.5%)
-        { name: "魔王そらまめ", rarity: "伝説レア", hp: 500, attackUp: 15, rate: 0.005, trait: "timer5" }
+        { name: "魔王そらまめ", rarity: "伝説レア", hp: 500, attackUp: 15, rate: 0.005, trait: "timer5", emoji: "🔥😈" }
     ];
 
     let currentEnemy = null;
@@ -96,7 +97,7 @@
     let timeLeft = 30;
     let timerInterval = null;
 
-    // 攻撃力計算（基地の強化＋管理者ボーナス反映）
+    // 攻撃力計算
     function getTotalAttack() {
         let base = 1;
         state.collection.forEach(c => {
@@ -115,23 +116,16 @@
         else if (rarityRoll < 0.1) rarity = "激レア";
         else if (rarityRoll < 0.3) rarity = "レア";
 
-        // 管理者モードならコモン〜激レアを強制的に超レアに
         if (state.adminMode && ["コモン", "レア", "激レア"].includes(rarity)) {
             rarity = "超レア";
         }
 
-        // レア度に応じたキャラ抽選
         let candidates = monsterTable.filter(m => m.rarity === rarity);
         let enemy = candidates[Math.floor(Math.random() * candidates.length)];
         
-        // 花火変異チェック（特性持ちキャラが基地にいれば10%で付与など、将来拡張用）
-        let isHanabi = false;
-        let hasCrit = state.collection.some(c => c.trait === "crit");
-        
-        currentEnemy = { ...enemy, isHanabi };
+        currentEnemy = { ...enemy };
         enemyHp = enemy.hp;
 
-        // 制限時間の決定（優先度：魔王(5秒) > きんぐ(17秒) > 通常(30秒)）
         let limit = 30;
         if (state.collection.some(c => c.name === "魔王そらまめ")) {
             limit = 5;
@@ -144,13 +138,11 @@
         updateUI();
     }
 
-    // タイマー管理
     function startTimer() {
         if (timerInterval) clearInterval(timerInterval);
         timerInterval = setInterval(() => {
             timeLeft--;
             if (timeLeft <= 0) {
-                // 時間切れで次の敵に入れ替え
                 spawnEnemy();
             }
             updateUI();
@@ -160,13 +152,11 @@
     // 攻撃ボタン
     document.getElementById('attack-btn').addEventListener('click', () => {
         if (state.inventory.length >= 50) {
-            alert("インベントリが50体上限のため、攻撃できません！売却か基地へ送ってください。");
+            alert("インベントリが50体上限のため、攻撃できません！");
             return;
         }
 
         let dmg = getTotalAttack();
-        
-        // クリティカル判定（超レア「きんごーれむ」の特性：5%で2倍ダメージ）
         if (state.collection.some(c => c.trait === "crit") && Math.random() < 0.05) {
             dmg *= 2;
         }
@@ -174,7 +164,6 @@
         enemyHp -= dmg;
 
         if (enemyHp <= 0) {
-            // 撃破！インベントリに追加
             state.inventory.push(currentEnemy);
             saveGame();
             spawnEnemy();
@@ -183,7 +172,7 @@
         }
     });
 
-    // 売却ボタン（インベントリの先頭を売却）
+    // 売却ボタン
     document.getElementById('sell-btn').addEventListener('click', () => {
         if (state.inventory.length === 0) {
             alert("インベントリが空です！");
@@ -201,7 +190,7 @@
             return;
         }
         if (state.collection.length >= 10) {
-            alert("エラー：コレクション基地は最大10体までです！これ以上置けません！");
+            alert("エラー：コレクション基地は最大10体までです！");
             return;
         }
         let char = state.inventory.shift();
@@ -210,7 +199,7 @@
         updateUI();
     });
 
-    // 管理者パネルの表示判定
+    // 管理者パネル判定（URL確認）
     if (window.location.href.includes("Secretadmin810")) {
         document.getElementById('admin-panel').style.display = 'block';
         state.adminMode = true;
@@ -222,20 +211,28 @@
             alert("コレクション基地が満杯です！");
             return;
         }
-        state.collection.push({ name: "管理者そらまめ", rarity: "神", attackUp: 999 });
+        state.collection.push({ name: "管理者そらまめ", rarity: "神", attackUp: 999, emoji: "👑🔥" });
         saveGame();
         updateUI();
     });
 
     // UI更新
     function updateUI() {
-        document.getElementById('enemy-display').innerText = `出現中: [${currentEnemy ? currentEnemy.rarity : ''}] ${currentEnemy ? currentEnemy.name : ''}`;
+        if (currentEnemy) {
+            document.getElementById('enemy-emoji').innerText = currentEnemy.emoji || "❓";
+            document.getElementById('enemy-display').innerText = `出現中: [${currentEnemy.rarity}] ${currentEnemy.name}`;
+        }
         document.getElementById('hp-display').innerText = `HP: ${enemyHp} / 攻撃力: ${getTotalAttack()}`;
         document.getElementById('timer-display').innerText = `制限時間: ${timeLeft}秒`;
         document.getElementById('inv-count').innerText = state.inventory.length;
         document.getElementById('base-count').innerText = state.collection.length;
 
-        let baseListText = state.collection.map(c => `${c.name}(+${c.attackUp})`).join(', ');
+        // インベントリ一覧の描画
+        let invListText = state.inventory.map((c, i) => `${i+1}: ${c.emoji}${c.name}(+${c.attackUp})`).join(', ');
+        document.getElementById('inv-list').innerText = invListText || "（インベントリは空です）";
+
+        // コレクション基地一覧の描画
+        let baseListText = state.collection.map(c => `${c.emoji}${c.name}(+${c.attackUp})`).join(', ');
         document.getElementById('base-list').innerText = baseListText || "（基地にキャラはいません）";
     }
 
