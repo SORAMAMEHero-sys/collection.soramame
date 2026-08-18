@@ -25,8 +25,26 @@
             justify-content: center;
         }
 
-        /* 設定モーダル */
-        #settings-modal {
+        /* 左上の強化ボタン */
+        #upgrade-btn {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: #444;
+            color: white;
+            border: 2px solid #777;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            font-size: 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* モーダル共通 */
+        .modal {
             display: none;
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -86,11 +104,30 @@
 </head>
 <body>
 
+<!-- 左上の強化ボタン -->
+<button id="upgrade-btn">💪</button>
 <!-- 右上の設定ボタン -->
 <button id="settings-btn">⚙️</button>
 
+<!-- 強化モーダル -->
+<div id="upgrade-modal" class="modal">
+    <div class="modal-content">
+        <h2>強化</h2>
+        <div class="setting-group">
+            <button id="up-attack" style="width: 100%; background: #555; color: white;">攻撃力 +1 (10コイン)</button>
+        </div>
+        <div class="setting-group">
+            <button id="up-efficiency" style="width: 100%; background: #555; color: white;">効率化 -0.1秒 (25コイン)</button>
+        </div>
+        <div class="setting-group">
+            <button id="up-luck" style="width: 100%; background: #555; color: white;">ラックティア Lv.<span id="luck-lv">0</span>/3 (100コイン)</button>
+        </div>
+        <button id="close-upgrade" style="width: 100%; background: #222; color: white; margin-top: 10px;">閉じる</button>
+    </div>
+</div>
+
 <!-- 設定モーダル -->
-<div id="settings-modal">
+<div id="settings-modal" class="modal">
     <div class="modal-content">
         <h2>設定</h2>
         
@@ -197,12 +234,14 @@
         rubies: 0,
         inventory: [],
         collection: [],
-        baseAttack: 1,
+        attackLv: 0,
+        efficiencyLv: 0,
+        luckLv: 0,
         adminMode: false,
         autoSellEnabled: false,
-        warningEnabled: true,     // デフォルトON
-        commonEnabled: true,      // デフォルトON
-        forcedNextCharacter: ""   // 次に出すキャラの指定
+        warningEnabled: true,     
+        commonEnabled: true,      
+        forcedNextCharacter: ""   
     };
 
     // --- セーブ機能 ---
@@ -215,6 +254,9 @@
                 state.rubies = parsed.rubies || 0;
                 state.inventory = parsed.inventory || [];
                 state.collection = parsed.collection || [];
+                state.attackLv = parsed.attackLv || 0;
+                state.efficiencyLv = parsed.efficiencyLv || 0;
+                state.luckLv = parsed.luckLv || 0;
                 state.autoSellEnabled = parsed.autoSellEnabled || false;
                 state.warningEnabled = parsed.warningEnabled !== undefined ? parsed.warningEnabled : true;
                 state.commonEnabled = parsed.commonEnabled !== undefined ? parsed.commonEnabled : true;
@@ -254,24 +296,23 @@
     let timerInterval = null;
 
     function getTotalAttack() {
-        let base = 1;
+        let base = 1 + state.attackLv;
         state.collection.forEach(c => {
             base += (c.attackUp || 0);
         });
         return base;
     }
 
-    // 敵のスポーン確率調整ロジック
+    // 敵のスポーン確率調整ロジック（ラックティア反映）
     function spawnEnemy() {
         let enemy = null;
 
-        // 管理者による次のキャラ強制指定がある場合
         if (state.forcedNextCharacter) {
             let found = monsterTable.find(m => m.name === state.forcedNextCharacter);
             if (found) {
                 enemy = { ...found };
             }
-            state.forcedNextCharacter = ""; // 1回使ったらリセット
+            state.forcedNextCharacter = "";
             document.getElementById('force-spawn-select').value = "";
         }
 
@@ -279,12 +320,15 @@
             let rarityRoll = Math.random();
             let rarity = "コモン";
             
-            if (rarityRoll < 0.0005) rarity = "伝説レア";
-            else if (rarityRoll < 0.005) rarity = "超レア";
+            // ラックティアによる確率変動 (超レア+0.3%, 伝説レア+0.1% / Lv)
+            let superChance = 0.005 + (state.luckLv * 0.003);
+            let legendChance = 0.0005 + (state.luckLv * 0.001);
+
+            if (rarityRoll < legendChance) rarity = "伝説レア";
+            else if (rarityRoll < superChance) rarity = "超レア";
             else if (rarityRoll < 0.035) rarity = "激レア";
             else if (rarityRoll < 0.185) rarity = "レア";
 
-            // コモンが出ない設定（commonEnabled === false）のとき、コモンに当たったらレアにする
             if (!state.commonEnabled && rarity === "コモン") {
                 rarity = "レア";
             }
@@ -302,12 +346,14 @@
             playSound('super');
         }
 
-        let limit = 30;
+        // 基本制限時間（特性 or 効率化による短縮）
+        let limit = 30 - (state.efficiencyLv * 0.1);
         if (state.collection.some(c => c.name === "魔王そらまめ")) {
-            limit = 5;
+            limit = Math.min(limit, 5);
         } else if (state.collection.some(c => c.name === "きんぐそらまめ")) {
-            limit = 17;
+            limit = Math.min(limit, 17);
         }
+        if (limit < 0.1) limit = 0.1; // 0.1秒が下限
         timeLeft = limit;
 
         startTimer();
@@ -335,7 +381,6 @@
         enemyHp -= dmg;
 
         if (enemyHp <= 0) {
-            // コイン獲得報酬の加算
             if (currentEnemy.rarity === "レア") state.coins += 1;
             else if (currentEnemy.rarity === "激レア") state.coins += 10;
             else if (currentEnemy.rarity === "超レア") state.coins += 30;
@@ -343,7 +388,7 @@
 
             let isLowRarity = ["コモン", "レア", "激レア"].includes(currentEnemy.rarity);
             if (state.autoSellEnabled && isLowRarity) {
-                // 自動売却処理（インベントリに追加しない）
+                // 自動売却
             } else {
                 if (state.inventory.length >= 50) {
                     alert("インベントリが50体上限のため、これ以上入手できません！");
@@ -359,7 +404,69 @@
         }
     });
 
-    // 設定モーダルの開閉
+    // --- 強化モーダルの処理 ---
+    document.getElementById('upgrade-btn').addEventListener('click', () => {
+        document.getElementById('upgrade-modal').style.display = 'flex';
+        updateUpgradeUI();
+    });
+    document.getElementById('close-upgrade').addEventListener('click', () => {
+        document.getElementById('upgrade-modal').style.display = 'none';
+    });
+
+    // 1. 攻撃力アップ (+1 / 10コイン)
+    document.getElementById('up-attack').addEventListener('click', () => {
+        if (state.coins < 10) {
+            alert("コインが足りません！ (10コイン必要)");
+            return;
+        }
+        state.coins -= 10;
+        state.attackLv++;
+        saveGame();
+        updateUI();
+        updateUpgradeUI();
+    });
+
+    // 2. 効率化 (-0.1秒 / 25コイン)
+    document.getElementById('up-efficiency').addEventListener('click', () => {
+        if (state.coins < 25) {
+            alert("コインが足りません！ (25コイン必要)");
+            return;
+        }
+        // 特性を合わせてカウントダウンが0.1秒になったら買えなくなるチェック
+        let currentLimit = 30 - ((state.efficiencyLv + 1) * 0.1);
+        if (currentLimit < 0.1) {
+            alert("これ以上効率化できません！");
+            return;
+        }
+        state.coins -= 25;
+        state.efficiencyLv++;
+        saveGame();
+        updateUI();
+        updateUpgradeUI();
+    });
+
+    // 3. ラックティア (最大3個まで / 100コイン)
+    document.getElementById('up-luck').addEventListener('click', () => {
+        if (state.luckLv >= 3) {
+            alert("ラックティアはすでに最大レベル（3）です！");
+            return;
+        }
+        if (state.coins < 100) {
+            alert("コインが足りません！ (100コイン必要)");
+            return;
+        }
+        state.coins -= 100;
+        state.luckLv++;
+        saveGame();
+        updateUI();
+        updateUpgradeUI();
+    });
+
+    function updateUpgradeUI() {
+        document.getElementById('luck-lv').innerText = state.luckLv;
+    }
+
+    // --- 設定モーダルの開閉 ---
     document.getElementById('settings-btn').addEventListener('click', () => {
         document.getElementById('settings-modal').style.display = 'flex';
         updateSettingsUI();
@@ -384,11 +491,10 @@
         saveGame();
     });
 
-    // コモン出現トグル（3500コイン消費）
+    // コモン出現トグル（3500コイン）
     const commonToggleBtn = document.getElementById('common-toggle');
     commonToggleBtn.addEventListener('click', () => {
         if (state.commonEnabled) {
-            // OFFにしようとする場合（3500コイン必要）
             if (state.coins < 3500) {
                 alert("コインが足りません！ (3500コイン必要です)");
                 return;
@@ -400,7 +506,6 @@
                 saveGame();
             }
         } else {
-            // ONに戻す場合
             state.commonEnabled = true;
             updateSettingsUI();
             saveGame();
@@ -409,7 +514,7 @@
 
     // データ削除ボタン
     document.getElementById('reset-data-btn').addEventListener('click', () => {
-        if (confirm("⚠️【警告】セーブデータ（コイン・インベントリ・基地）がすべて消去されます。本当にリセットしますか？")) {
+        if (confirm("⚠️【警告】セーブデータ（コイン・インベントリ・基地・強化）がすべて消去されます。本当にリセットしますか？")) {
             if (confirm("本当に本当に消去してもよろしいですか？")) {
                 localStorage.removeItem('brainrot_save');
                 alert("データを削除しました。ページを再読み込みします。");
@@ -449,10 +554,9 @@
         }
     }
 
-    // インベントリのアイテム削除
+    // インベントリの削除・基地送り
     window.deleteInventoryItem = function(index) {
         let item = state.inventory[index];
-        // warningEnabledがONのとき、超レア・伝説レア・神の削除時に警告
         if (state.warningEnabled && (item.rarity === "超レア" || item.rarity === "伝説レア" || item.rarity === "神")) {
             if (!confirm(`⚠️【警告】「${item.name}（${item.rarity}）」を本当に削除しますか？`)) {
                 return;
@@ -463,7 +567,6 @@
         updateUI();
     };
 
-    // 基地へ送る
     window.sendToBase = function(index) {
         if (state.collection.length >= 10) {
             alert("エラー：コレクション基地は最大10体までです！");
@@ -475,7 +578,6 @@
         updateUI();
     };
 
-    // 基地から外す（インベントリへ戻す。インベントリ上限時はエラー）
     window.removeFromBase = function(index) {
         if (state.inventory.length >= 50) {
             alert("エラー：インベントリが50体上限のため、基地から外せません！");
@@ -493,12 +595,11 @@
         updateUI();
     };
 
-    // 管理者パネル判定 (soramameadmin810)
+    // 管理者パネル判定
     if (window.location.href.includes("soramameadmin810")) {
         document.getElementById('admin-panel').style.display = 'block';
         state.adminMode = true;
 
-        // 次に出すキャラのセレクトボックス初期化
         let select = document.getElementById('force-spawn-select');
         monsterTable.forEach(m => {
             let opt = document.createElement('option');
