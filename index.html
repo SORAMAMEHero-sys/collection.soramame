@@ -40,11 +40,14 @@
             padding: 20px;
             border-radius: 10px;
             border: 2px solid #555;
-            width: 80%;
-            max-width: 350px;
+            width: 85%;
+            max-width: 380px;
             text-align: left;
+            max-height: 90vh;
+            overflow-y: auto;
         }
         .modal-content h2 { margin-top: 0; text-align: center; }
+        .setting-group { margin-bottom: 15px; border-bottom: 1px solid #444; padding-bottom: 10px; }
 
         /* 巨大な丸い攻撃ボタン */
         #attack-btn {
@@ -69,7 +72,7 @@
         }
 
         button { padding: 8px 14px; font-size: 14px; margin: 3px; cursor: pointer; }
-        #admin-panel { display: none; background: #400; padding: 20px; border: 2px solid red; margin-top: 20px; }
+        #admin-panel { display: none; background: #400; padding: 20px; border: 2px solid red; margin-top: 20px; text-align: left; }
         .panel { border: 1px solid #555; padding: 10px; margin: 10px auto; max-width: 500px; background: #333; text-align: left; }
         
         .item-list { font-size: 14px; color: #fff; max-height: 160px; overflow-y: auto; background: #222; padding: 5px; margin-top: 5px; }
@@ -78,6 +81,7 @@
 
         #enemy-emoji { font-size: 56px; margin: 10px 0; }
         .status-container { font-size: 16px; font-weight: bold; margin: 10px 0; }
+        .currency-box { font-size: 15px; font-weight: bold; background: #111; padding: 8px; border-radius: 6px; margin-bottom: 10px; display: flex; justify-content: space-around; }
     </style>
 </head>
 <body>
@@ -89,15 +93,38 @@
 <div id="settings-modal">
     <div class="modal-content">
         <h2>設定</h2>
-        <p>激レア以下 自動売却:</p>
-        <button id="auto-sell-toggle" style="width: 100%; background: #555; color: white;">OFF</button>
-        <br><br>
-        <button id="close-settings" style="width: 100%; background: #222; color: white;">閉じる</button>
+        
+        <div class="setting-group">
+            <p>激レア以下 自動売却:</p>
+            <button id="auto-sell-toggle" style="width: 100%; background: #555; color: white;">OFF</button>
+        </div>
+
+        <div class="setting-group">
+            <p>超レアの削除警告:</p>
+            <button id="warning-toggle" style="width: 100%; background: #28a745; color: white;">ON</button>
+        </div>
+
+        <div class="setting-group">
+            <p>コモンキャラ出現: <span id="common-status" style="color: #28a745;">ON</span></p>
+            <button id="common-toggle" style="width: 100%; background: #555; color: white;">OFFにする (3500コイン)</button>
+        </div>
+
+        <div class="setting-group" style="text-align: center;">
+            <button id="reset-data-btn" style="background: #a00; color: white; width: 100%;">データ削除</button>
+        </div>
+
+        <button id="close-settings" style="width: 100%; background: #222; color: white; margin-top: 10px;">閉じる</button>
     </div>
 </div>
 
 <h1>STEEL THE BRAINROT</h1>
 <div id="game">
+    <!-- 通貨表示 -->
+    <div class="currency-box">
+        <span>💰 コイン: <span id="coin-count">0</span></span>
+        <span>💎 ルビー: <span id="ruby-count">0</span> (開発中😏)</span>
+    </div>
+
     <div id="enemy-emoji">🥔</div>
     <div id="enemy-display" class="status-container">敵出現中！</div>
     <div id="hp-display">HP: --</div>
@@ -118,7 +145,16 @@
 
 <div id="admin-panel">
     <h2>管理者パネル</h2>
-    <button id="add-admin-char">隠しキャラ「管理者そらまめ」ゲット</button>
+    <div style="margin-bottom: 10px;">
+        <label>次に出るキャラ指定:</label><br>
+        <select id="force-spawn-select" style="width: 100%; padding: 5px; margin-top: 5px; background: #222; color: white;">
+            <option value="">ランダム (通常)</option>
+        </select>
+        <button id="apply-spawn-btn" style="width: 100%; margin-top: 5px; background: #555; color: white;">このキャラを次に出す</button>
+    </div>
+    <button id="add-admin-char" style="width: 100%; margin-bottom: 5px;">隠しキャラ「管理者そらまめ」ゲット</button>
+    <button id="admin-add-coins" style="width: 100%; margin-bottom: 5px; background: #d4af37; color: black; font-weight: bold;">コイン +1000 貰う</button>
+    <button id="admin-add-rubies" style="width: 100%; background: #e50914; color: white; font-weight: bold;">ルビー +100 貰う (開発中😏)</button>
 </div>
 
 <script>
@@ -157,24 +193,31 @@
 
     // --- ゲームデータ ---
     let state = {
-        money: 0,
+        coins: 0,
+        rubies: 0,
         inventory: [],
         collection: [],
         baseAttack: 1,
         adminMode: false,
-        autoSellEnabled: false // デフォルトOFF
+        autoSellEnabled: false,
+        warningEnabled: true,     // デフォルトON
+        commonEnabled: true,      // デフォルトON
+        forcedNextCharacter: ""   // 次に出すキャラの指定
     };
 
-    // --- セーブ機能の所（※セーブデータが絶対に消えないように、許可なしで絶対に触らないで） ---
+    // --- セーブ機能 ---
     function loadGame() {
         const saved = localStorage.getItem('brainrot_save');
         if (saved) {
             try {
                 const parsed = JSON.parse(saved);
-                state.money = parsed.money || 0;
+                state.coins = parsed.coins || 0;
+                state.rubies = parsed.rubies || 0;
                 state.inventory = parsed.inventory || [];
                 state.collection = parsed.collection || [];
                 state.autoSellEnabled = parsed.autoSellEnabled || false;
+                state.warningEnabled = parsed.warningEnabled !== undefined ? parsed.warningEnabled : true;
+                state.commonEnabled = parsed.commonEnabled !== undefined ? parsed.commonEnabled : true;
             } catch(e) {
                 console.error("セーブデータの読み込みに失敗しました", e);
             }
@@ -182,22 +225,26 @@
     }
 
     function saveGame() {
-        // セーブデータが絶対に消えないように、許可なしで絶対に触らないで
         localStorage.setItem('brainrot_save', JSON.stringify(state));
     }
     setInterval(saveGame, 3000);
 
     // --- モンスターデータ ---
     const monsterTable = [
+        // コモン
         { name: "ぽてとまん", rarity: "コモン", hp: 10, attackUp: 1, emoji: "🥔" },
         { name: "ぞうすい", rarity: "コモン", hp: 10, attackUp: 1, emoji: "🥣" },
         { name: "そらまめ", rarity: "コモン", hp: 10, attackUp: 1, emoji: "🟢" },
+        // レア
         { name: "どうごーれむ", rarity: "レア", hp: 50, attackUp: 2, emoji: "🗿" },
         { name: "にあれい", rarity: "レア", hp: 50, attackUp: 2, emoji: "🤖" },
         { name: "兵士そらまめ", rarity: "レア", hp: 50, attackUp: 3, emoji: "🪖" },
+        // 激レア
         { name: "上級海兵そらまめ", rarity: "激レア", hp: 100, attackUp: 4, emoji: "⚓" },
+        // 超レア (HP3000)
         { name: "きんごーれむ", rarity: "超レア", hp: 3000, attackUp: 5, trait: "crit", emoji: "✨🗿" },
         { name: "きんぐそらまめ", rarity: "超レア", hp: 3000, attackUp: 7, trait: "timer17", emoji: "👑" },
+        // 伝説レア (HP10000)
         { name: "魔王そらまめ", rarity: "伝説レア", hp: 10000, attackUp: 15, trait: "timer5", emoji: "🔥😈" }
     ];
 
@@ -214,23 +261,39 @@
         return base;
     }
 
+    // 敵のスポーン確率調整ロジック
     function spawnEnemy() {
-        let rarityRoll = Math.random();
-        let rarity = "コモン";
-        
-        if (rarityRoll < 0.0005) rarity = "伝説レア";
-        else if (rarityRoll < 0.005) rarity = "超レア";
-        else if (rarityRoll < 0.035) rarity = "激レア";
-        else if (rarityRoll < 0.185) rarity = "レア";
+        let enemy = null;
 
-        if (state.adminMode && ["コモン", "レア", "激レア"].includes(rarity)) {
-            rarity = "超レア";
+        // 管理者による次のキャラ強制指定がある場合
+        if (state.forcedNextCharacter) {
+            let found = monsterTable.find(m => m.name === state.forcedNextCharacter);
+            if (found) {
+                enemy = { ...found };
+            }
+            state.forcedNextCharacter = ""; // 1回使ったらリセット
+            document.getElementById('force-spawn-select').value = "";
         }
 
-        let candidates = monsterTable.filter(m => m.rarity === rarity);
-        let enemy = candidates[Math.floor(Math.random() * candidates.length)];
+        if (!enemy) {
+            let rarityRoll = Math.random();
+            let rarity = "コモン";
+            
+            if (rarityRoll < 0.0005) rarity = "伝説レア";
+            else if (rarityRoll < 0.005) rarity = "超レア";
+            else if (rarityRoll < 0.035) rarity = "激レア";
+            else if (rarityRoll < 0.185) rarity = "レア";
+
+            // コモンが出ない設定（commonEnabled === false）のとき、コモンに当たったらレアにする
+            if (!state.commonEnabled && rarity === "コモン") {
+                rarity = "レア";
+            }
+
+            let candidates = monsterTable.filter(m => m.rarity === rarity);
+            enemy = { ...candidates[Math.floor(Math.random() * candidates.length)] };
+        }
         
-        currentEnemy = { ...enemy };
+        currentEnemy = enemy;
         enemyHp = enemy.hp;
 
         if (currentEnemy.rarity === "伝説レア") {
@@ -272,14 +335,19 @@
         enemyHp -= dmg;
 
         if (enemyHp <= 0) {
-            // 撃破時：自動売却設定がONかつ「激レア以下」ならインベントリに入れず消去（売却）
+            // コイン獲得報酬の加算
+            if (currentEnemy.rarity === "レア") state.coins += 1;
+            else if (currentEnemy.rarity === "激レア") state.coins += 10;
+            else if (currentEnemy.rarity === "超レア") state.coins += 30;
+            else if (currentEnemy.rarity === "伝説レア") state.coins += 100;
+
             let isLowRarity = ["コモン", "レア", "激レア"].includes(currentEnemy.rarity);
             if (state.autoSellEnabled && isLowRarity) {
                 // 自動売却処理（インベントリに追加しない）
             } else {
                 if (state.inventory.length >= 50) {
                     alert("インベントリが50体上限のため、これ以上入手できません！");
-                    enemyHp = 1; // 撃破持ち越し防止
+                    enemyHp = 1;
                     return;
                 }
                 state.inventory.push(currentEnemy);
@@ -300,12 +368,54 @@
         document.getElementById('settings-modal').style.display = 'none';
     });
 
-    // 自動売却トグルボタン
+    // 自動売却トグル
     const autoSellToggleBtn = document.getElementById('auto-sell-toggle');
     autoSellToggleBtn.addEventListener('click', () => {
         state.autoSellEnabled = !state.autoSellEnabled;
         updateSettingsUI();
         saveGame();
+    });
+
+    // 超レア警告トグル
+    const warningToggleBtn = document.getElementById('warning-toggle');
+    warningToggleBtn.addEventListener('click', () => {
+        state.warningEnabled = !state.warningEnabled;
+        updateSettingsUI();
+        saveGame();
+    });
+
+    // コモン出現トグル（3500コイン消費）
+    const commonToggleBtn = document.getElementById('common-toggle');
+    commonToggleBtn.addEventListener('click', () => {
+        if (state.commonEnabled) {
+            // OFFにしようとする場合（3500コイン必要）
+            if (state.coins < 3500) {
+                alert("コインが足りません！ (3500コイン必要です)");
+                return;
+            }
+            if (confirm("3500コインを消費して、コモンキャラの出現をOFFにしますか？")) {
+                state.coins -= 3500;
+                state.commonEnabled = false;
+                updateSettingsUI();
+                saveGame();
+            }
+        } else {
+            // ONに戻す場合
+            state.commonEnabled = true;
+            updateSettingsUI();
+            saveGame();
+        }
+    });
+
+    // データ削除ボタン
+    document.getElementById('reset-data-btn').addEventListener('click', () => {
+        if (confirm("⚠️【警告】セーブデータ（コイン・インベントリ・基地）がすべて消去されます。本当にリセットしますか？")) {
+            if (confirm("本当に本当に消去してもよろしいですか？")) {
+                localStorage.removeItem('brainrot_save');
+                alert("データを削除しました。ページを再読み込みします。");
+                location.reload();
+            }
+        }
     });
 
     function updateSettingsUI() {
@@ -316,11 +426,34 @@
             autoSellToggleBtn.innerText = "OFF";
             autoSellToggleBtn.style.background = "#555";
         }
+
+        if (state.warningEnabled) {
+            warningToggleBtn.innerText = "ON";
+            warningToggleBtn.style.background = "#28a745";
+        } else {
+            warningToggleBtn.innerText = "OFF";
+            warningToggleBtn.style.background = "#555";
+        }
+
+        let commonStatusSpan = document.getElementById('common-status');
+        if (state.commonEnabled) {
+            commonStatusSpan.innerText = "ON";
+            commonStatusSpan.style.color = "#28a745";
+            commonToggleBtn.innerText = "OFFにする (3500コイン)";
+            commonToggleBtn.style.background = "#555";
+        } else {
+            commonStatusSpan.innerText = "OFF";
+            commonStatusSpan.style.color = "#e50914";
+            commonToggleBtn.innerText = "ONにする";
+            commonToggleBtn.style.background = "#28a745";
+        }
     }
 
+    // インベントリのアイテム削除
     window.deleteInventoryItem = function(index) {
         let item = state.inventory[index];
-        if (item.rarity === "超レア" || item.rarity === "伝説レア" || item.rarity === "神") {
+        // warningEnabledがONのとき、超レア・伝説レア・神の削除時に警告
+        if (state.warningEnabled && (item.rarity === "超レア" || item.rarity === "伝説レア" || item.rarity === "神")) {
             if (!confirm(`⚠️【警告】「${item.name}（${item.rarity}）」を本当に削除しますか？`)) {
                 return;
             }
@@ -330,6 +463,7 @@
         updateUI();
     };
 
+    // 基地へ送る
     window.sendToBase = function(index) {
         if (state.collection.length >= 10) {
             alert("エラー：コレクション基地は最大10体までです！");
@@ -341,22 +475,48 @@
         updateUI();
     };
 
+    // 基地から外す（インベントリへ戻す。インベントリ上限時はエラー）
     window.removeFromBase = function(index) {
+        if (state.inventory.length >= 50) {
+            alert("エラー：インベントリが50体上限のため、基地から外せません！");
+            return;
+        }
         let item = state.collection[index];
-        if (item.rarity === "超レア" || item.rarity === "伝説レア" || item.rarity === "神") {
+        if (state.warningEnabled && (item.rarity === "超レア" || item.rarity === "伝説レア" || item.rarity === "神")) {
             if (!confirm(`⚠️【警告】基地の「${item.name}（${item.rarity}）」を外しますか？`)) {
                 return;
             }
         }
         state.collection.splice(index, 1);
+        state.inventory.push(item);
         saveGame();
         updateUI();
     };
 
-    if (window.location.href.includes("Secretadmin810")) {
+    // 管理者パネル判定 (soramameadmin810)
+    if (window.location.href.includes("soramameadmin810")) {
         document.getElementById('admin-panel').style.display = 'block';
         state.adminMode = true;
+
+        // 次に出すキャラのセレクトボックス初期化
+        let select = document.getElementById('force-spawn-select');
+        monsterTable.forEach(m => {
+            let opt = document.createElement('option');
+            opt.value = m.name;
+            opt.innerText = `[${m.rarity}] ${m.emoji}${m.name}`;
+            select.appendChild(opt);
+        });
     }
+
+    document.getElementById('apply-spawn-btn').addEventListener('click', () => {
+        let selectedName = document.getElementById('force-spawn-select').value;
+        if (selectedName) {
+            state.forcedNextCharacter = selectedName;
+            alert(`次に登場するキャラを「${selectedName}」に固定しました！次の敵を倒すと登場します。`);
+        } else {
+            alert("キャラが選択されていません。");
+        }
+    });
 
     document.getElementById('add-admin-char').addEventListener('click', () => {
         if (state.collection.length >= 10) {
@@ -368,6 +528,20 @@
         updateUI();
     });
 
+    document.getElementById('admin-add-coins').addEventListener('click', () => {
+        state.coins += 1000;
+        saveGame();
+        updateUI();
+        alert("コインを1000追加しました！");
+    });
+
+    document.getElementById('admin-add-rubies').addEventListener('click', () => {
+        state.rubies += 100;
+        saveGame();
+        updateUI();
+        alert("ルビーを100追加しました！ (開発中😏)");
+    });
+
     function updateUI() {
         if (currentEnemy) {
             document.getElementById('enemy-emoji').innerText = currentEnemy.emoji || "❓";
@@ -377,6 +551,8 @@
         document.getElementById('timer-display').innerText = `制限時間: ${timeLeft}秒`;
         document.getElementById('inv-count').innerText = state.inventory.length;
         document.getElementById('base-count').innerText = state.collection.length;
+        document.getElementById('coin-count').innerText = state.coins;
+        document.getElementById('ruby-count').innerText = state.rubies;
 
         let invContainer = document.getElementById('inv-list');
         invContainer.innerHTML = "";
