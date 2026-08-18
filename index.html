@@ -9,7 +9,6 @@
         button { padding: 12px 24px; font-size: 16px; margin: 5px; cursor: pointer; }
         #admin-panel { display: none; background: #400; padding: 20px; border: 2px solid red; margin-top: 20px; }
         .panel { border: 1px solid #555; padding: 10px; margin: 10px auto; max-width: 500px; background: #333; }
-        .warning { color: #ff6b6b; font-size: 11px; margin-top: 5px; font-weight: bold; }
         .item-list { font-size: 13px; color: #aaa; max-height: 80px; overflow-y: auto; background: #222; padding: 5px; margin-top: 5px; text-align: left; }
         #enemy-emoji { font-size: 48px; margin: 10px 0; }
     </style>
@@ -43,6 +42,41 @@
 </div>
 
 <script>
+    // --- サウンド生成用 (Web Audio API) ---
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    function playSound(type) {
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        let now = audioCtx.currentTime;
+
+        if (type === 'super') {
+            // 超レア用：キラキラした高めの2音
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(587.33, now); // D5
+            osc.frequency.setValueAtTime(880, now + 0.1); // A5
+            gain.gain.setValueAtTime(0.15, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+            osc.start(now);
+            osc.stop(now + 0.3);
+        } else if (type === 'legend') {
+            // 伝説レア用：重厚でド派手な低音〜高音の連続音
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(150, now);
+            osc.frequency.exponentialRampToValueAtTime(600, now + 0.25);
+            gain.gain.setValueAtTime(0.2, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+            osc.start(now);
+            osc.stop(now + 0.5);
+        }
+    }
+
     // --- ゲームデータ ---
     let state = {
         money: 0,
@@ -73,7 +107,7 @@
     }
     setInterval(saveGame, 3000);
 
-    // --- モンスターデータ（絵文字付き） ---
+    // --- モンスターデータ ---
     const monsterTable = [
         // コモン (60%)
         { name: "ぽてとまん", rarity: "コモン", hp: 10, attackUp: 1, rate: 0.2, emoji: "🥔" },
@@ -125,6 +159,13 @@
         
         currentEnemy = { ...enemy };
         enemyHp = enemy.hp;
+
+        // レア度に応じた音の再生（管理者キャラは鳴らない）
+        if (currentEnemy.rarity === "伝説レア") {
+            playSound('legend');
+        } else if (currentEnemy.rarity === "超レア") {
+            playSound('super');
+        }
 
         let limit = 30;
         if (state.collection.some(c => c.name === "魔王そらまめ")) {
@@ -199,7 +240,7 @@
         updateUI();
     });
 
-    // 管理者パネル判定（URL確認）
+    // 管理者パネル判定
     if (window.location.href.includes("Secretadmin810")) {
         document.getElementById('admin-panel').style.display = 'block';
         state.adminMode = true;
@@ -227,16 +268,13 @@
         document.getElementById('inv-count').innerText = state.inventory.length;
         document.getElementById('base-count').innerText = state.collection.length;
 
-        // インベントリ一覧の描画
         let invListText = state.inventory.map((c, i) => `${i+1}: ${c.emoji}${c.name}(+${c.attackUp})`).join(', ');
         document.getElementById('inv-list').innerText = invListText || "（インベントリは空です）";
 
-        // コレクション基地一覧の描画
         let baseListText = state.collection.map(c => `${c.emoji}${c.name}(+${c.attackUp})`).join(', ');
         document.getElementById('base-list').innerText = baseListText || "（基地にキャラはいません）";
     }
 
-    // 初期化ロード＆ゲーム開始
     loadGame();
     spawnEnemy();
 </script>
