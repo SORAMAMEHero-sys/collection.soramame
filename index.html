@@ -184,7 +184,7 @@
             <button id="underworld-toggle" style="width: 100%; background: #555; color: white;">裏世界へ😈 (OFF)</button>
         </div>
         <div class="setting-group">
-            <p>激レア以下 自動売却:</p>
+            <p>超レア以下 自動削除:</p>
             <button id="auto-sell-toggle" style="width: 100%; background: #555; color: white;">OFF</button>
         </div>
         <div class="setting-group">
@@ -342,10 +342,12 @@
         { name: "にあれい", rarity: "レア", hp: 50, attackUp: 2, emoji: "🤖" },
         { name: "兵士そらまめ", rarity: "レア", hp: 50, attackUp: 3, emoji: "🪖" },
         { name: "上級海兵そらまめ", rarity: "激レア", hp: 100, attackUp: 4, emoji: "⚓" },
+        { name: "裏世界の番人", rarity: "異世界", hp: 500000, attackUp: 30, trait: "timer30", emoji: "🥷⚔️" },
         { name: "きんごーれむ", rarity: "超レア", hp: 3000, attackUp: 5, trait: "crit", emoji: "✨🗿" },
         { name: "きんぐそらまめ", rarity: "超レア", hp: 3000, attackUp: 7, emoji: "👑" },
         { name: "魔王そらまめ", rarity: "伝説レア", hp: 10000, attackUp: 15, trait: "timer12", emoji: "🔥😈" },
-        { name: "破壊神", rarity: "幻", hp: 1000000, attackUp: 50, trait: "phantomTimer60", emoji: "🔥🤏😈🫳🧊" }
+        { name: "破壊神", rarity: "幻", hp: 1000000, attackUp: 50, trait: "phantomTimer60", emoji: "🔥🤏😈🫳🧊" },
+        { name: "創造神", rarity: "幻", hp: 1750000, attackUp: 100, trait: "phantomTimer60", emoji: "💔🫰🤵‍♂️🫴☯️" }
     ];
 
     let currentEnemy = null;
@@ -379,21 +381,39 @@
 
             if (state.underworldEnabled) {
                 // 裏世界モードの確率
-                // 破壊神: 0.1% (0.001)
-                // 伝説レア: 4.9% (0.049) -> 累積 0.05
-                // 超レア: 45% (0.45) -> 累積 0.50
-                // 激レア: 50% (0.50) -> 累積 1.00
-                if (rarityRoll < 0.001) rarity = "幻";
+                // 創造神: 0.001% (0.00001)
+                // 幻(破壊神): 0.1% (0.001)
+                // 伝説レア: 4.889% -> 累積 0.05
+                // 異世界(裏世界の番人): 5% -> 累積 0.10
+                // 超レア: 40% -> 累積 0.50
+                // 激レア: 50% -> 累積 1.00
+                if (rarityRoll < 0.00001) rarity = "幻"; // 創造神は「幻」枠
+                else if (rarityRoll < 0.001) rarity = "幻";
                 else if (rarityRoll < 0.05) rarity = "伝説レア";
+                else if (rarityRoll < 0.10) rarity = "異世界";
                 else if (rarityRoll < 0.50) rarity = "超レア";
                 else rarity = "激レア";
-            } else {
+
+                // 創造神を厳密に抽選するための調整
+                if (rarity === "幻" && rarityRoll >= 0.00001) {
+                    // 通常の破壊神
+                    let phantoms = monsterTable.filter(m => m.rarity === "幻");
+                    enemy = { ...phantoms[0] }; // 破壊神
+                } else if (rarity === "幻" && rarityRoll < 0.00001) {
+                    let phantoms = monsterTable.filter(m => m.rarity === "幻");
+                    enemy = { ...phantoms[1] }; // 創造神
+                }
+            }
+
+            if (!enemy) {
                 let phantomChance = (state.luckLv >= 3) ? 0.000005 : 0;
                 let legendChance = 0.0005 + (state.luckLv * 0.001);
-                let superChance = 0.005 + (state.luckLv * 0.003);
+                let isekaiChance = legendChance + 0.02; // 異世界レアリティの通常出現確率
+                let superChance = isekaiChance + 0.005 + (state.luckLv * 0.003);
 
                 if (rarityRoll < phantomChance) rarity = "幻";
                 else if (rarityRoll < legendChance) rarity = "伝説レア";
+                else if (rarityRoll < isekaiChance) rarity = "異世界";
                 else if (rarityRoll < superChance) rarity = "超レア";
                 else if (rarityRoll < 0.035) rarity = "激レア";
                 else if (rarityRoll < 0.185) rarity = "レア";
@@ -404,14 +424,16 @@
                 }
             }
 
-            let candidates = monsterTable.filter(m => m.rarity === rarity);
-            enemy = { ...candidates[Math.floor(Math.random() * candidates.length)] };
+            if (!enemy) {
+                let candidates = monsterTable.filter(m => m.rarity === rarity);
+                enemy = { ...candidates[Math.floor(Math.random() * candidates.length)] };
+            }
         }
         
         currentEnemy = enemy;
         enemyHp = enemy.hp;
 
-        // 背景切り替え（破壊神戦は虹、裏世界ONなら裏世界背景、通常は黒）
+        // 背景切り替え（幻戦は虹、裏世界ONなら裏世界背景、通常は黒）
         if (currentEnemy.rarity === "幻") {
             document.body.classList.remove('underworld-bg');
             document.body.classList.add('phantom-bg');
@@ -425,7 +447,7 @@
             }
 
             if (currentEnemy.rarity === "伝説レア") playSound('legend');
-            else if (currentEnemy.rarity === "超レア") playSound('super');
+            else if (currentEnemy.rarity === "超レア" || currentEnemy.rarity === "異世界") playSound('super');
         }
 
         // 制限時間計算（基本30秒 ＋ 強化延長 ＋ 基地のきんぐそらまめ効果 +17秒）
@@ -439,7 +461,12 @@
             limit = 12;
         }
 
-        // 幻の破壊神（60秒固定）
+        // 裏世界の番人（30秒制限）
+        if (currentEnemy.trait === "timer30") {
+            limit = 30;
+        }
+
+        // 幻（60秒固定）
         if (currentEnemy.trait === "phantomTimer60") {
             limit = 60;
         }
@@ -458,6 +485,7 @@
                 if (currentEnemy) {
                     if (currentEnemy.rarity === "レア") state.coins += 1;
                     else if (currentEnemy.rarity === "激レア") state.coins += 10;
+                    else if (currentEnemy.rarity === "異世界") state.coins += 20;
                     else if (currentEnemy.rarity === "超レア") state.coins += 30;
                     else if (currentEnemy.rarity === "伝説レア") state.coins += 100;
                     else if (currentEnemy.rarity === "幻") state.coins += 500;
@@ -480,13 +508,14 @@
 
             if (currentEnemy.rarity === "レア") state.coins += 1;
             else if (currentEnemy.rarity === "激レア") state.coins += 10;
+            else if (currentEnemy.rarity === "異世界") { state.coins += 20; state.rubies += 2; }
             else if (currentEnemy.rarity === "超レア") { state.coins += 30; state.rubies += 1; }
             else if (currentEnemy.rarity === "伝説レア") { state.coins += 100; state.rubies += 5; }
             else if (currentEnemy.rarity === "幻") { state.coins += 500; state.rubies += 20; }
 
-            let isLowRarity = ["コモン", "レア", "激レア"].includes(currentEnemy.rarity);
-            if (state.autoSellEnabled && isLowRarity) {
-                // 自動売却
+            let isAutoSellTarget = state.autoSellEnabled && ["コモン", "レア", "激レア", "異世界", "超レア"].includes(currentEnemy.rarity);
+            if (isAutoSellTarget) {
+                // 自動削除（売却）
             } else {
                 if (state.inventory.length >= 50) {
                     alert("インベントリが50体上限のため、これ以上入手できません！");
@@ -695,7 +724,7 @@
 
     window.deleteInventoryItem = function(index) {
         let item = state.inventory[index];
-        if (state.warningEnabled && (item.rarity === "超レア" || item.rarity === "伝説レア" || item.rarity === "幻" || item.rarity === "神")) {
+        if (state.warningEnabled && (item.rarity === "超レア" || item.rarity === "異世界" || item.rarity === "伝説レア" || item.rarity === "幻" || item.rarity === "神")) {
             if (!confirm(`⚠️【警告】「${item.name}（${item.rarity}）」を本当に削除しますか？`)) return;
         }
         state.inventory.splice(index, 1);
@@ -712,7 +741,7 @@
     window.removeFromBase = function(index) {
         if (state.inventory.length >= 50) { alert("エラー：インベントリが50体上限のため、基地から外せません！"); return; }
         let item = state.collection[index];
-        if (state.warningEnabled && (item.rarity === "超レア" || item.rarity === "伝説レア" || item.rarity === "幻" || item.rarity === "神")) {
+        if (state.warningEnabled && (item.rarity === "超レア" || item.rarity === "異世界" || item.rarity === "伝説レア" || item.rarity === "幻" || item.rarity === "神")) {
             if (!confirm(`⚠️【警告】基地の「${item.name}（${item.rarity}）」を外しますか？`)) return;
         }
         state.collection.splice(index, 1);
