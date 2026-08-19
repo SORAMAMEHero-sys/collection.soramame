@@ -381,42 +381,43 @@
 
             if (state.underworldEnabled) {
                 // 裏世界モードの確率
-                // 創造神: 0.001% (0.00001)
-                // 幻(破壊神): 0.1% (0.001)
-                // 伝説レア: 4.889% -> 累積 0.05
-                // 異世界(裏世界の番人): 5% -> 累積 0.10
-                // 超レア: 40% -> 累積 0.50
-                // 激レア: 50% -> 累積 1.00
-                if (rarityRoll < 0.00001) rarity = "幻"; // 創造神は「幻」枠
-                else if (rarityRoll < 0.001) rarity = "幻";
-                else if (rarityRoll < 0.05) rarity = "伝説レア";
-                else if (rarityRoll < 0.10) rarity = "異世界";
-                else if (rarityRoll < 0.50) rarity = "超レア";
-                else rarity = "激レア";
-
-                // 創造神を厳密に抽選するための調整
-                if (rarity === "幻" && rarityRoll >= 0.00001) {
-                    // 通常の破壊神
+                if (rarityRoll < 0.00001) {
                     let phantoms = monsterTable.filter(m => m.rarity === "幻");
-                    enemy = { ...phantoms[0] }; // 破壊神
-                } else if (rarity === "幻" && rarityRoll < 0.00001) {
+                    enemy = { ...phantoms[1] }; // 創造神 (0.001%)
+                } else if (rarityRoll < 0.001) {
                     let phantoms = monsterTable.filter(m => m.rarity === "幻");
-                    enemy = { ...phantoms[1] }; // 創造神
+                    enemy = { ...phantoms[0] }; // 破壊神 (0.1%)
+                } else if (rarityRoll < 0.05) {
+                    rarity = "伝説レア";
+                } else if (rarityRoll < 0.10) {
+                    rarity = "異世界";
+                } else if (rarityRoll < 0.50) {
+                    rarity = "超レア";
+                } else {
+                    rarity = "激レア";
                 }
-            }
-
-            if (!enemy) {
+            } else {
+                // 通常モードの確率（小さい確率から順番に判定するように修正）
                 let phantomChance = (state.luckLv >= 3) ? 0.000005 : 0;
-                let legendChance = 0.0005 + (state.luckLv * 0.001);
-                let isekaiChance = legendChance + 0.02; // 異世界レアリティの通常出現確率
-                let superChance = isekaiChance + 0.005 + (state.luckLv * 0.003);
+                let legendChance = 0.0005 + (state.luckLv * 0.001); // 伝説レア
+                let isekaiChance = legendChance + 0.02;             // 異世界
+                let superChance = isekaiChance + 0.005 + (state.luckLv * 0.003); // 超レア
 
-                if (rarityRoll < phantomChance) rarity = "幻";
-                else if (rarityRoll < legendChance) rarity = "伝説レア";
-                else if (rarityRoll < isekaiChance) rarity = "異世界";
-                else if (rarityRoll < superChance) rarity = "超レア";
-                else if (rarityRoll < 0.035) rarity = "激レア";
-                else if (rarityRoll < 0.185) rarity = "レア";
+                if (rarityRoll < phantomChance) {
+                    rarity = "幻";
+                } else if (rarityRoll < legendChance) {
+                    rarity = "伝説レア";
+                } else if (rarityRoll < isekaiChance) {
+                    rarity = "異世界";
+                } else if (rarityRoll < superChance) {
+                    rarity = "超レア";
+                } else if (rarityRoll < 0.035) {
+                    rarity = "激レア";
+                } else if (rarityRoll < 0.185) {
+                    rarity = "レア";
+                } else {
+                    rarity = "コモン";
+                }
 
                 if (!state.commonEnabled && rarity === "コモン") rarity = "レア";
                 if (state.collection.some(c => c.name === "破壊神") && rarity === "レア") {
@@ -450,23 +451,20 @@
             else if (currentEnemy.rarity === "超レア" || currentEnemy.rarity === "異世界") playSound('super');
         }
 
-        // 制限時間計算（基本30秒 ＋ 強化延長 ＋ 基地のきんぐそらまめ効果 +17秒）
+        // 制限時間計算
         let limit = 30 + (state.efficiencyLv * 0.1);
         if (state.collection.some(c => c.name === "きんぐそらまめ")) {
             limit += 17;
         }
 
-        // 魔王そらまめ（12秒固定）
         if (currentEnemy.trait === "timer12") {
             limit = 12;
         }
 
-        // 裏世界の番人（30秒制限）
         if (currentEnemy.trait === "timer30") {
             limit = 30;
         }
 
-        // 幻（60秒固定）
         if (currentEnemy.trait === "phantomTimer60") {
             limit = 60;
         }
@@ -690,7 +688,6 @@
     });
 
     function updateSettingsUI() {
-        // 破壊神を一度でも倒していれば「裏世界へ」ボタンを表示
         let uwGroup = document.getElementById('underworld-setting-group');
         if (state.hasBeatenPhantom || state.collection.some(c => c.name === "破壊神")) {
             uwGroup.style.display = 'block';
@@ -765,7 +762,6 @@
         saveGame(); updateUI();
     };
 
-    // 管理者パネル用のセレクトボックス初期化
     let select = document.getElementById('force-spawn-select');
     monsterTable.forEach(m => {
         let opt = document.createElement('option');
